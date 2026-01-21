@@ -91,6 +91,9 @@ async function removeProduct(id) {
   error.value = ''
   if (!id) return
 
+  // dacă ștergi produsul pe care îl editezi, ieși din edit
+  if (editingId.value === id) cancelEdit()
+
   const ok = confirm('Delete this product?')
   if (!ok) return
 
@@ -104,6 +107,11 @@ async function removeProduct(id) {
 
 async function saveEdit() {
   error.value = ''
+
+  if (!editingId.value) {
+    error.value = 'No product selected for edit.'
+    return
+  }
 
   const n = editName.value.trim()
   const p = Number(editPrice.value)
@@ -137,7 +145,6 @@ function connectLiveProducts() {
   loading.value = true
   error.value = ''
 
-  // cele mai noi sus; dacă createdAt e null pentru unele, Firestore tot le va pune la început/sfârșit
   const q = query(collection(db, 'products'), orderBy('createdAt', 'desc'))
 
   unsubscribe = onSnapshot(
@@ -195,7 +202,7 @@ onBeforeUnmount(() => {
         <textarea v-model="description" rows="3" placeholder="short description..." style="width: 100%;"></textarea>
       </div>
 
-      <button type="submit" :disabled="saving || updating">
+      <button type="submit" :disabled="loading || saving || updating">
         {{ saving ? 'Saving...' : 'Add' }}
       </button>
     </form>
@@ -213,10 +220,10 @@ onBeforeUnmount(() => {
           <span v-if="p.description"> — {{ p.description }}</span>
 
           <div style="margin-top: 6px;">
-            <button type="button" @click="startEdit(p)" :disabled="saving || updating">
+            <button type="button" @click="startEdit(p)" :disabled="loading || saving || updating">
               Edit
             </button>
-            <button type="button" @click="removeProduct(p.id)" :disabled="saving || updating">
+            <button type="button" @click="removeProduct(p.id)" :disabled="loading || saving || updating">
               Delete
             </button>
           </div>
@@ -239,10 +246,10 @@ onBeforeUnmount(() => {
             <textarea v-model="editDescription" rows="2" style="width: 100%;"></textarea>
           </div>
 
-          <button type="button" @click="saveEdit" :disabled="updating || saving">
+          <button type="button" @click="saveEdit" :disabled="loading || updating || saving">
             {{ updating ? 'Saving...' : 'Save' }}
           </button>
-          <button type="button" @click="cancelEdit" :disabled="updating || saving">
+          <button type="button" @click="cancelEdit" :disabled="loading || updating || saving">
             Cancel
           </button>
         </div>
