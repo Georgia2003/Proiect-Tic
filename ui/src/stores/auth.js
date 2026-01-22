@@ -7,10 +7,15 @@ export const useAuthStore = defineStore("auth", () => {
   const user = ref(null);
   const ready = ref(false);
 
+  let started = false;
+
   function init() {
+    if (started) return;
+    started = true;
+
     onAuthStateChanged(auth, (u) => {
-      user.value = u;      // u e null dacă e delogat
-      ready.value = true;  // gata, știm statusul
+      user.value = u;     // u e null dacă e delogat
+      ready.value = true; // de aici încolo știm sigur statusul
     });
   }
 

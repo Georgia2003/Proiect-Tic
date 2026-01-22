@@ -1,13 +1,29 @@
 <script setup>
-import { ref } from "vue";
-import { createUserWithEmailAndPassword, signInWithEmailAndPassword, signOut } from "firebase/auth";
+import { ref, computed } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+} from "firebase/auth";
 import { auth } from "../firebase";
+import { useAuthStore } from "../stores/auth";
+
+const router = useRouter();
+const route = useRoute();
+const authStore = useAuthStore();
 
 const email = ref("");
 const password = ref("");
 const loading = ref(false);
 const error = ref("");
 const message = ref("");
+
+const redirectPath = computed(() => route.query.redirect?.toString() || "/products");
+
+function goAfterAuth() {
+  router.push(redirectPath.value);
+}
 
 async function register() {
   error.value = "";
@@ -16,6 +32,7 @@ async function register() {
   try {
     await createUserWithEmailAndPassword(auth, email.value.trim(), password.value);
     message.value = "Cont creat ✅";
+    goAfterAuth();
   } catch (e) {
     error.value = e?.message || "Register failed";
   } finally {
@@ -30,6 +47,7 @@ async function login() {
   try {
     await signInWithEmailAndPassword(auth, email.value.trim(), password.value);
     message.value = "Logat ✅";
+    goAfterAuth();
   } catch (e) {
     error.value = e?.message || "Login failed";
   } finally {
@@ -44,6 +62,7 @@ async function logout() {
   try {
     await signOut(auth);
     message.value = "Delogat ✅";
+    router.push("/login");
   } catch (e) {
     error.value = e?.message || "Logout failed";
   } finally {
@@ -55,6 +74,8 @@ async function logout() {
 <template>
   <div>
     <h1>Login</h1>
+
+    <p v-if="!authStore.ready">Checking session...</p>
 
     <p v-if="error" style="color: crimson; font-weight: 600;">{{ error }}</p>
     <p v-if="message" style="color: green; font-weight: 600;">{{ message }}</p>
@@ -73,6 +94,10 @@ async function logout() {
       <button @click="register" :disabled="loading">Register</button>
       <button @click="login" :disabled="loading" style="margin-left: 8px;">Login</button>
       <button @click="logout" :disabled="loading" style="margin-left: 8px;">Logout</button>
+
+      <p style="margin-top: 12px;">
+        Redirect după login: <b>{{ redirectPath }}</b>
+      </p>
     </div>
   </div>
 </template>
