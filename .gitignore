@@ -1,5 +1,4 @@
 **/node_modules/
-
 ui/.env
 api/.env
 api/serviceAccountKey.json
