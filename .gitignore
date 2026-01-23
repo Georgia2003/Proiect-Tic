@@ -1,4 +1,9 @@
-**/node_modules/
+# env (in ui si api)
 ui/.env
 api/.env
+
+# firebase admin key
 api/serviceAccountKey.json
+
+# node deps
+**/node_modules
