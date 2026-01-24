@@ -1,103 +1,113 @@
 import { Router } from "express";
-import admin from "../src/firebaseAdmin.js";
-import { requireAuth } from "../src/middleware/auth.js";
+import { db, admin } from "../src/firebaseAdmin.js";
+import { requireAuth } from "../src/middleware/requireAuth.js";
 
 const router = Router();
-const db = admin.firestore();
+router.use(requireAuth);
 
-// READ: toate produsele (doar user logat, ca în rules)
-router.get("/", requireAuth, async (req, res) => {
+const productsCol = db.collection("products");
+
+function isNonEmptyString(x) {
+  return typeof x === "string" && x.trim().length > 0;
+}
+function toNumber(x) {
+  const n = Number(x);
+  return Number.isFinite(n) ? n : NaN;
+}
+
+// GET all (doar ale userului)
+router.get("/", async (req, res) => {
   try {
-    const snap = await db.collection("products").orderBy("createdAt", "desc").get();
-    const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-    res.json(data);
-  } catch (e) {
-    res.status(500).json({ error: "Failed to fetch products" });
-  }
+    const snap = await productsCol
+      .where("ownerId", "==", req.user.uid)
+      .orderBy("createdAt", "desc")
+      .get();
+
+    const products = snap.docs.map((d) => ({ id: d.id, ...d.data() }));
+    res.json(products);
+  } catch (err) {
+  console.error("GET /api/products error:", err);
+  console.error("code:", err?.code, "message:", err?.message);
+  return res.status(500).json({ error: err?.message || "Failed to load products" });
+}
 });
 
-// CREATE: ownerId trebuie să fie uid-ul userului
-router.post("/", requireAuth, async (req, res) => {
+// POST create
+router.post("/", async (req, res) => {
   try {
     const { name, price, description } = req.body;
 
-    if (!name || String(name).trim().length < 2) {
-      return res.status(400).json({ error: "Name is required (min 2 chars)" });
-    }
-    const p = Number(price);
-    if (Number.isNaN(p) || p < 0) {
-      return res.status(400).json({ error: "Price must be a number >= 0" });
-    }
+    if (!isNonEmptyString(name)) return res.status(400).json({ error: "Name is required" });
 
-    const docRef = await db.collection("products").add({
-      name: String(name).trim(),
+    const p = toNumber(price);
+    if (Number.isNaN(p) || p < 0) return res.status(400).json({ error: "Price must be a number >= 0" });
+
+    const now = admin.firestore.FieldValue.serverTimestamp();
+
+    const newProduct = {
+      name: name.trim(),
       price: p,
-      description: String(description || "").trim(),
+      description: isNonEmptyString(description) ? description.trim() : "",
       ownerId: req.user.uid,
-      createdAt: admin.firestore.FieldValue.serverTimestamp(),
-      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-    });
+      createdAt: now,
+      updatedAt: now,
+    };
 
-    res.status(201).json({ id: docRef.id });
-  } catch (e) {
+    const created = await productsCol.add(newProduct);
+    res.status(201).json({ id: created.id, ...newProduct });
+  } catch {
     res.status(500).json({ error: "Failed to create product" });
   }
 });
 
-// UPDATE: doar owner-ul
-router.put("/:id", requireAuth, async (req, res) => {
+// PUT update
+router.put("/:id", async (req, res) => {
   try {
-    const { id } = req.params;
+    const ref = productsCol.doc(req.params.id);
+    const docSnap = await ref.get();
+    if (!docSnap.exists) return res.status(404).json({ error: "Not found" });
 
-    const ref = db.collection("products").doc(id);
-    const existing = await ref.get();
-    if (!existing.exists) return res.status(404).json({ error: "Not found" });
-
-    const data = existing.data();
-    if (data.ownerId !== req.user.uid) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
+    const data = docSnap.data();
+    if (data.ownerId !== req.user.uid) return res.status(403).json({ error: "Forbidden" });
 
     const { name, price, description } = req.body;
-
     const updates = {};
+
     if (name !== undefined) {
-      if (!String(name).trim()) return res.status(400).json({ error: "Name cannot be empty" });
-      updates.name = String(name).trim();
+      if (!isNonEmptyString(name)) return res.status(400).json({ error: "Name must be non-empty" });
+      updates.name = name.trim();
     }
     if (price !== undefined) {
-      const p = Number(price);
-      if (Number.isNaN(p) || p < 0) return res.status(400).json({ error: "Price must be >= 0" });
+      const p = toNumber(price);
+      if (Number.isNaN(p) || p < 0) return res.status(400).json({ error: "Price must be a number >= 0" });
       updates.price = p;
     }
-    if (description !== undefined) updates.description = String(description).trim();
+    if (description !== undefined) {
+      updates.description = isNonEmptyString(description) ? description.trim() : "";
+    }
 
     updates.updatedAt = admin.firestore.FieldValue.serverTimestamp();
 
     await ref.update(updates);
-    res.json({ ok: true });
-  } catch (e) {
+    res.json({ ok: true, id: req.params.id, updates });
+  } catch {
     res.status(500).json({ error: "Failed to update product" });
   }
 });
 
-// DELETE: doar owner-ul
-router.delete("/:id", requireAuth, async (req, res) => {
+// DELETE
+router.delete("/:id", async (req, res) => {
   try {
-    const { id } = req.params;
+    const ref = productsCol.doc(req.params.id);
+    const docSnap = await ref.get();
+    if (!docSnap.exists) return res.status(404).json({ error: "Not found" });
 
-    const ref = db.collection("products").doc(id);
-    const existing = await ref.get();
-    if (!existing.exists) return res.status(404).json({ error: "Not found" });
-
-    const data = existing.data();
-    if (data.ownerId !== req.user.uid) {
-      return res.status(403).json({ error: "Forbidden" });
-    }
+    const data = docSnap.data();
+    if (data.ownerId !== req.user.uid) return res.status(403).json({ error: "Forbidden" });
 
     await ref.delete();
-    res.json({ ok: true });
-  } catch (e) {
+    res.json({ ok: true, deletedId: req.params.id });
+  } catch {
     res.status(500).json({ error: "Failed to delete product" });
   }
 });
