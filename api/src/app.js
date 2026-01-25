@@ -5,6 +5,9 @@ import morgan from "morgan";
 import productsRouter from "../routes/products.js";
 import { requireAuth } from "./middleware/requireAuth.js";
 
+import ordersRouter from "../routes/orders.js";
+
+
 const app = express();
 
 app.use(cors({ origin: true }));
@@ -20,5 +23,7 @@ app.get("/api/me", requireAuth, (req, res) => {
 });
 
 app.use("/api/products", productsRouter);
+app.use("/api/orders", ordersRouter);
+
 
 export default app;

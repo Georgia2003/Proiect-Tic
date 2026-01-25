@@ -3,13 +3,15 @@ import { computed } from "vue";
 import { useAuthStore } from "./stores/auth";
 import { signOut } from "firebase/auth";
 import { auth } from "./firebase";
-import { useRouter } from "vue-router";
+import { useRouter, useRoute } from "vue-router";
 
 const authStore = useAuthStore();
 const router = useRouter();
+const route = useRoute();
 
 const isAuthReady = computed(() => authStore.ready);
 const isLoggedIn = computed(() => authStore.ready && !!authStore.user);
+const email = computed(() => authStore.user?.email || "");
 
 async function logout() {
   try {
@@ -21,27 +23,59 @@ async function logout() {
 </script>
 
 <template>
-  <div>
-    <h1>SPA Assignment</h1>
+  <v-app>
+    <v-app-bar title="SPA Assignment" density="comfortable">
+      <template #prepend>
+        <v-btn variant="text" to="/">Home</v-btn>
+        <v-btn
+          variant="text"
+          to="/products"
+          :disabled="!isLoggedIn"
+        >
+          Products
+        </v-btn>
+      </template>
 
-    <nav style="margin-bottom: 16px;">
-      <router-link to="/">Home</router-link>
+      <v-spacer />
 
-      <span v-if="!isAuthReady"> | Checking...</span>
+      <v-chip
+        v-if="isLoggedIn"
+        class="me-3"
+        variant="tonal"
+      >
+        {{ email }}
+      </v-chip>
 
-      <span v-else-if="!isLoggedIn">
-        | <router-link to="/login">Login</router-link>
-      </span>
+      <v-btn
+        v-if="isLoggedIn"
+        variant="tonal"
+        @click="logout"
+      >
+        Logout
+      </v-btn>
 
-      <span v-else>
-        | <router-link to="/products">Products</router-link>
-        <span style="margin-left: 12px;">
-          ({{ authStore.user.email }})
-          <button @click="logout" style="margin-left: 8px;">Logout</button>
-        </span>
-      </span>
-    </nav>
+      <v-btn
+        v-else
+        variant="tonal"
+        to="/login"
+      >
+        Login
+      </v-btn>
+    </v-app-bar>
 
-    <router-view />
-  </div>
+    <v-main>
+      <v-container class="py-6">
+        <v-alert
+          v-if="!isAuthReady"
+          type="info"
+          variant="tonal"
+          class="mb-4"
+        >
+          Checking session...
+        </v-alert>
+
+        <router-view v-else />
+      </v-container>
+    </v-main>
+  </v-app>
 </template>
