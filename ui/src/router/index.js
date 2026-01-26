@@ -7,10 +7,18 @@ import { useAuthStore } from "../stores/auth";
 const routes = [
   { path: "/", name: "home", component: HomeView },
   { path: "/login", name: "login", component: LoginView },
+
   {
     path: "/products",
     name: "products",
     component: ProductsView,
+    meta: { requiresAuth: true },
+  },
+
+  {
+    path: "/orders",
+    name: "orders",
+    component: () => import("../views/OrdersView.vue"),
     meta: { requiresAuth: true },
   },
 ];
@@ -23,7 +31,7 @@ const router = createRouter({
 router.beforeEach((to) => {
   const authStore = useAuthStore();
 
-  // Așteaptă până știm sigur dacă user e logat sau nu
+  // așteaptă auth init (ready)
   if (!authStore.ready) {
     return new Promise((resolve) => {
       const stop = setInterval(() => {
@@ -37,10 +45,7 @@ router.beforeEach((to) => {
 
   // dacă ruta cere auth și nu ești logat -> la login cu redirect
   if (to.meta.requiresAuth && !authStore.user) {
-    return {
-      name: "login",
-      query: { redirect: to.fullPath },
-    };
+    return { name: "login", query: { redirect: to.fullPath } };
   }
 
   // dacă ești logat și mergi pe login -> trimite-te la products
